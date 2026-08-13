@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bacnotan BEE-Alert — Resident Portal</title>
+  <link rel="stylesheet" href="src/styles/main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="resident-page">
+
+  <!-- Toast container for notifications -->
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- ── App Header ── -->
+  <header class="resident-header">
+
+    <!-- Left: bee logo + app name -->
+    <div class="resident-header__brand">
+      <span class="resident-header__logo" aria-hidden="true">🐝</span>
+      <span class="resident-header__title">BEE-Alert</span>
+    </div>
+
+    <!-- Right: user info + sign out -->
+    <div class="resident-header__user">
+      <span class="resident-header__name" id="resident-name" aria-live="polite"></span>
+      <span class="resident-header__barangay" id="resident-barangay" aria-live="polite"></span>
+      <button
+        class="btn--ghost-white"
+        type="button"
+        id="sign-out-btn"
+        aria-label="Sign out of BEE-Alert"
+      >
+        Sign Out
+      </button>
+    </div>
+
+  </header>
+  <!-- /.resident-header -->
+
+  <!-- ── Tab Navigation ── -->
+  <nav class="resident-tabs" aria-label="Resident portal navigation">
+    <div role="tablist" aria-label="Resident portal tabs">
+
+      <button
+        class="tab-btn is-active"
+        type="button"
+        role="tab"
+        id="tab-btn-submit-report"
+        data-tab="submit-report"
+        aria-controls="tab-submit-report"
+        aria-selected="true"
+        tabindex="0"
+      >
+        Submit Report
+      </button>
+
+      <button
+        class="tab-btn"
+        type="button"
+        role="tab"
+        id="tab-btn-my-reports"
+        data-tab="my-reports"
+        aria-controls="tab-my-reports"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        My Reports
+      </button>
+
+      <button
+        class="tab-btn"
+        type="button"
+        role="tab"
+        id="tab-btn-chatbot"
+        data-tab="chatbot"
+        aria-controls="tab-chatbot"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        Chatbot
+      </button>
+
+    </div>
+  </nav>
+  <!-- /.resident-tabs -->
+
+  <!-- ── Main Content ── -->
+  <main>
+    <div class="resident-content">
+
+      <!-- Submit Report Tab Panel -->
+      <section
+        class="tab-panel is-active"
+        id="tab-submit-report"
+        role="tabpanel"
+        aria-labelledby="tab-btn-submit-report"
+        tabindex="0"
+      >
+        <!-- report-form.js will render the form here -->
+        <div id="report-form-container"></div>
+      </section>
+
+      <!-- My Reports Tab Panel -->
+      <section
+        class="tab-panel"
+        id="tab-my-reports"
+        role="tabpanel"
+        aria-labelledby="tab-btn-my-reports"
+        tabindex="0"
+      >
+        <!-- my-reports.js will render the list here -->
+        <div id="my-reports-container"></div>
+      </section>
+
+      <!-- Chatbot Tab Panel -->
+      <section
+        class="tab-panel"
+        id="tab-chatbot"
+        role="tabpanel"
+        aria-labelledby="tab-btn-chatbot"
+        tabindex="0"
+      >
+        <!-- chatbot.js will render the chat UI here -->
+        <div id="chatbot-container"></div>
+      </section>
+
+    </div>
+  </main>
+  <!-- /.main -->
+
+  <!-- Report Detail Modal -->
+  <div
+    id="report-detail-modal"
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="report-detail-title"
+    hidden
+  >
+    <div class="modal modal--wide">
+      <button
+        class="modal__close"
+        type="button"
+        id="close-report-detail-modal"
+        aria-label="Close report details"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true" focusable="false">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+      <h2 class="modal__title" id="report-detail-title">Report Details</h2>
+      <!-- my-reports.js will populate this -->
+      <div id="report-detail-content"></div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="loading-overlay" hidden aria-hidden="true">
+    <div class="spinner" role="status">
+      <span class="sr-only">Loading…</span>
+    </div>
+  </div>
+
+  <script type="module" src="src/resident/app.js"></script>
+</body>
+</html>
