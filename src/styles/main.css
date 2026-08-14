@@ -1050,3 +1050,254 @@ select.form-input { padding-left: var(--space-4); }
   color: var(--color-primary-dark);
   text-decoration: underline;
 }
+
+/* ── Forgot password success icon ──────────────────────────── */
+.reset-success-icon {
+  font-size: 3rem;
+  text-align: center;
+  margin-bottom: var(--space-4);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Confirm Residents section
+   ═══════════════════════════════════════════════════════════════ */
+
+.confirm-residents-section {
+  max-width: 960px;
+}
+
+.confirm-residents-header {
+  margin-bottom: var(--space-6);
+}
+
+.confirm-residents-subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-top: calc(var(--space-1) * -1);
+}
+
+/* ── Filter tabs ───────────────────────────────────────────── */
+
+.resident-filter-tabs {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: var(--space-2);
+}
+
+.resident-filter-tab {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.resident-filter-tab:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-primary);
+}
+
+.resident-filter-tab.is-active {
+  color: var(--color-primary);
+  font-weight: 700;
+  background: #FFF4E8;
+}
+
+.resident-filter-tab__count {
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  min-width: 20px;
+  text-align: center;
+}
+
+.resident-filter-tab.is-active .resident-filter-tab__count {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* ── Residents grid ────────────────────────────────────────── */
+
+.residents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+/* ── Resident card ─────────────────────────────────────────── */
+
+.resident-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: box-shadow var(--transition-fast);
+}
+
+.resident-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.resident-card__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary), #fb923c);
+  color: #fff;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.resident-card__info {
+  flex: 1;
+}
+
+.resident-card__name {
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-1);
+}
+
+.resident-card__email {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+  word-break: break-all;
+}
+
+.resident-card__date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.resident-card__status {
+  display: flex;
+}
+
+.resident-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ── Approve / Reject buttons ──────────────────────────────── */
+
+.btn--approve {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background: #d1fae5;
+  color: #065f46;
+  transition: background-color var(--transition-fast);
+}
+
+.btn--approve:hover {
+  background: #a7f3d0;
+}
+
+.btn--reject {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background: #fee2e2;
+  color: #991b1b;
+  transition: background-color var(--transition-fast);
+}
+
+.btn--reject:hover {
+  background: #fecaca;
+}
+
+/* ── Rejected badge ────────────────────────────────────────── */
+
+.badge--rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ── Empty state ───────────────────────────────────────────── */
+
+.residents-empty {
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+}
+
+.residents-empty__icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-4);
+}
+
+.residents-empty__text {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* ── Skeleton loader ───────────────────────────────────────── */
+
+.residents-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.residents-skeleton[hidden] {
+  display: none;
+}
+
+.resident-skeleton-card {
+  height: 180px;
+  background: linear-gradient(90deg, var(--color-border) 25%, var(--color-surface-alt) 50%, var(--color-border) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-lg);
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .residents-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resident-filter-tabs {
+    gap: var(--space-1);
+  }
+
+  .resident-filter-tab {
+    padding: var(--space-2) var(--space-3);
+  }
+}

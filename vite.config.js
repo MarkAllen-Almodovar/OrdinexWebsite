@@ -8,6 +8,7 @@ export default defineConfig({
         register: 'register.html',
         resident: 'resident.html',
         admin: 'admin.html',
+        forgotPassword: 'forgot-password.html',
       },
     },
   },
