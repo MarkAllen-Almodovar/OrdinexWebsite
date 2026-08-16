@@ -40,7 +40,21 @@ async function activateSection(sectionName, user) {
       }
     } catch (err) {
       console.error(`[admin/app] Failed to load section "${sectionName}":`, err);
+      // Remove from initialised set so the next click retries
       initialisedSections.delete(sectionName);
+    }
+  } else if (initialisedSections.has(sectionName) && SECTION_MODULES[sectionName]) {
+    // Re-run init on every visit for live-data sections so the
+    // Firestore listener is always fresh (handles auth-state changes too)
+    if (sectionName === 'confirm-residents') {
+      try {
+        const module = await SECTION_MODULES[sectionName]();
+        if (typeof module?.init === 'function') {
+          module.init(container, user?.uid);
+        }
+      } catch (err) {
+        console.error(`[admin/app] Failed to reload section "${sectionName}":`, err);
+      }
     }
   }
 }

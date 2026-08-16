@@ -939,6 +939,9 @@ input[role="switch"]:checked::after { left: 22px; }
 .concern-table td { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); vertical-align: middle; }
 .concern-table tr:hover td { background: var(--color-surface-alt); }
 .concern-table .thumb { width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius-sm); }
+.concern-table .thumb-placeholder { font-size: 20px; }
+.concern-table .resident-cell .resident-name { font-weight: 600; color: var(--color-text); }
+.concern-table .resident-cell .resident-barangay { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .actions-cell { position: relative; }
 .actions-btn { background: none; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-3); cursor: pointer; font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); }
 .actions-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
@@ -948,6 +951,17 @@ input[role="switch"]:checked::after { left: 22px; }
 .concern-cards { display: none; }
 .modal--wide { max-width: 600px; max-height: 90vh; overflow-y: auto; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3) var(--space-6); margin-bottom: var(--space-4); }
+.detail-grid dt { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.detail-grid dd { font-size: var(--font-size-sm); color: var(--color-text); margin: 0; }
+.modal-section-heading { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin: var(--space-4) 0 var(--space-2); }
+.evidence-wrap { display: flex; flex-direction: column; gap: var(--space-4); margin-bottom: var(--space-4); }
+.evidence-item { display: flex; flex-direction: column; gap: var(--space-2); }
+.evidence-label { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); margin: 0; }
+.detail-image { width: 100%; max-height: 360px; object-fit: contain; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: #000; transition: opacity 0.2s; }
+.detail-image:hover { opacity: 0.9; }
+.detail-video { width: 100%; max-height: 360px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: #000; }
+.evidence-external-link { font-size: var(--font-size-xs); color: var(--color-primary); text-decoration: underline; }
+.no-evidence { font-size: var(--font-size-sm); color: var(--color-text-muted); font-style: italic; margin-bottom: var(--space-4); }
 .detail-grid dt { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; }
 .detail-grid dd { font-size: var(--font-size-sm); color: var(--color-text); }
 .detail-image { width: 100%; max-height: 200px; object-fit: cover; border-radius: var(--radius-md); margin-bottom: var(--space-4); }
@@ -1147,12 +1161,25 @@ select.form-input { padding-left: var(--space-4); }
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   transition: box-shadow var(--transition-fast);
 }
 
 .resident-card:hover {
   box-shadow: var(--shadow-md);
+}
+
+/* ── Header row: avatar + name/email + status badge ── */
+
+.resident-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.resident-card__header-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .resident-card__avatar {
@@ -1169,26 +1196,136 @@ select.form-input { padding-left: var(--space-4); }
   flex-shrink: 0;
 }
 
-.resident-card__info {
-  flex: 1;
-}
-
 .resident-card__name {
   font-weight: 600;
   color: var(--color-text);
   margin-bottom: var(--space-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Body: details + ID side by side ── */
+
+.resident-card__body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.resident-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.resident-card__meta {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  word-break: break-word;
+}
+
+.resident-card__meta-icon {
+  flex-shrink: 0;
+  line-height: 1.4;
 }
 
 .resident-card__email {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  margin-bottom: var(--space-1);
   word-break: break-all;
 }
 
 .resident-card__date {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+/* ── Valid ID section ── */
+
+.resident-card__id-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.resident-card__id-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.resident-card__id-link {
+  display: block;
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  width: 140px;
+  transition: border-color var(--transition-fast);
+}
+
+.resident-card__id-link:hover {
+  border-color: var(--color-primary);
+}
+
+.resident-card__id-thumb {
+  display: block;
+  width: 140px;
+  height: 100px;
+  object-fit: cover;
+}
+
+.resident-card__id-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.resident-card__id-link:hover .resident-card__id-overlay {
+  opacity: 1;
+}
+
+.resident-card__id-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 140px;
+  height: 100px;
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--color-border);
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.resident-card__id-missing-icon {
+  font-size: 24px;
+  font-style: normal;
 }
 
 .resident-card__status {

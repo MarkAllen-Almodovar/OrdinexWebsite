@@ -81,39 +81,83 @@ const SECTION_HTML = /* html */ `
 // ---------------------------------------------------------------------------
 
 /** Build a single resident card element. */
-function buildCard(resident, adminUid) {
+function buildCard(resident) {
   const card = document.createElement('div');
   card.className = 'resident-card';
   card.dataset.uid = resident.id;
 
-  const status = resident.status ?? 'pending';
+  const status      = resident.status ?? 'pending';
+  // Mobile writes both fullName and displayName — fall back gracefully
+  const displayName = resident.displayName ?? resident.fullName ?? '—';
+  const safeName    = escapeHtml(displayName);
+  const uid         = resident.id;
+
+  // ID photo thumbnail (uploaded asynchronously after signup — may be absent)
+  const idThumb = resident.idImageUrl
+    ? `<a class="resident-card__id-link" href="${escapeHtml(resident.idImageUrl)}" target="_blank" rel="noopener noreferrer" aria-label="View valid ID for ${safeName}">
+         <img class="resident-card__id-thumb" src="${escapeHtml(resident.idImageUrl)}" alt="Valid ID" loading="lazy" />
+         <span class="resident-card__id-overlay">Click to view full size</span>
+       </a>`
+    : `<div class="resident-card__id-missing">
+         <span class="resident-card__id-missing-icon" aria-hidden="true">🪪</span>
+         <span>No ID uploaded yet</span>
+       </div>`;
 
   card.innerHTML = /* html */ `
-    <div class="resident-card__avatar" aria-hidden="true">
-      ${getInitials(resident.displayName ?? resident.email ?? '?')}
+    <div class="resident-card__header">
+      <div class="resident-card__avatar" aria-hidden="true">
+        ${getInitials(displayName)}
+      </div>
+      <div class="resident-card__header-info">
+        <p class="resident-card__name">${safeName}</p>
+        <p class="resident-card__meta resident-card__email">
+          <span class="resident-card__meta-icon" aria-hidden="true">✉</span>
+          ${escapeHtml(resident.email ?? '—')}
+        </p>
+      </div>
+      <div class="resident-card__status">
+        ${statusBadge(status)}
+      </div>
     </div>
-    <div class="resident-card__info">
-      <p class="resident-card__name">${escapeHtml(resident.displayName ?? '—')}</p>
-      <p class="resident-card__email">${escapeHtml(resident.email ?? '—')}</p>
-      <p class="resident-card__date">Registered: ${formatDate(resident.createdAt)}</p>
+
+    <div class="resident-card__body">
+      <div class="resident-card__details">
+        <p class="resident-card__meta resident-card__phone">
+          <span class="resident-card__meta-icon" aria-hidden="true">�</span>
+          ${escapeHtml(resident.phoneNumber ?? '—')}
+        </p>
+        <p class="resident-card__meta resident-card__address">
+          <span class="resident-card__meta-icon" aria-hidden="true">📍</span>
+          ${escapeHtml(resident.address ?? '—')}
+        </p>
+        <p class="resident-card__date">
+          <span class="resident-card__meta-icon" aria-hidden="true">🗓</span>
+          Registered: ${formatDate(resident.createdAt)}
+        </p>
+      </div>
+
+      <div class="resident-card__id-section">
+        <p class="resident-card__id-label">
+          <span aria-hidden="true">🪪</span> Valid ID
+        </p>
+        ${idThumb}
+      </div>
     </div>
-    <div class="resident-card__status">
-      ${statusBadge(status)}
-    </div>
+
     <div class="resident-card__actions">
       ${
         status === 'pending'
-          ? `<button class="btn btn--approve" data-action="approve" data-uid="${resident.id}" aria-label="Approve ${escapeHtml(resident.displayName ?? resident.email ?? '')}">
-               ✓ Approve
+          ? `<button class="btn btn--approve" data-action="approve" data-uid="${uid}" aria-label="Approve ${safeName}">
+               ✓ Confirm
              </button>
-             <button class="btn btn--reject" data-action="reject" data-uid="${resident.id}" aria-label="Reject ${escapeHtml(resident.displayName ?? resident.email ?? '')}">
+             <button class="btn btn--reject" data-action="reject" data-uid="${uid}" aria-label="Reject ${safeName}">
                ✕ Reject
              </button>`
           : status === 'approved'
-          ? `<button class="btn btn--reject" data-action="reject" data-uid="${resident.id}" aria-label="Revoke approval for ${escapeHtml(resident.displayName ?? resident.email ?? '')}">
+          ? `<button class="btn btn--reject" data-action="reject" data-uid="${uid}" aria-label="Revoke approval for ${safeName}">
                Revoke
              </button>`
-          : `<button class="btn btn--approve" data-action="approve" data-uid="${resident.id}" aria-label="Re-approve ${escapeHtml(resident.displayName ?? resident.email ?? '')}">
+          : `<button class="btn btn--approve" data-action="approve" data-uid="${uid}" aria-label="Re-approve ${safeName}">
                Re-approve
              </button>`
       }

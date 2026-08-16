@@ -52,8 +52,9 @@ export function applyFilters(reports, { status = 'All', category = 'All', search
     if (category !== 'All' && report.category !== category) return false;
     if (needle) {
       const inDescription  = (report.description  ?? '').toLowerCase().includes(needle);
-      const inResident     = (report.residentName  ?? '').toLowerCase().includes(needle);
-      if (!inDescription && !inResident) return false;
+      const inResident     = (report.userName ?? report.residentName ?? '').toLowerCase().includes(needle);
+      const inReference    = (report.reportReference ?? '').toLowerCase().includes(needle);
+      if (!inDescription && !inResident && !inReference) return false;
     }
     return true;
   });
@@ -158,7 +159,12 @@ function buildRow(report, rowNum) {
 
   // Resident
   const tdResident = document.createElement('td');
-  tdResident.textContent = report.residentName ?? '—';
+  tdResident.className = 'resident-cell';
+  const residentName = report.userName ?? report.residentName ?? '—';
+  tdResident.innerHTML = `
+    <span class="resident-name">${residentName}</span>
+    ${report.barangay ? `<br><span class="resident-barangay">${report.barangay}</span>` : ''}
+  `;
   tr.appendChild(tdResident);
 
   // Category
@@ -371,11 +377,13 @@ async function openDetailModal(report) {
   dl.className = 'detail-grid';
 
   const fields = [
-    ['Resident', report.residentName ?? '—'],
-    ['Barangay', report.barangay ?? '—'],
-    ['Category', report.category ?? '—'],
+    ['Resident',       report.userName ?? report.residentName ?? '—'],
+    ['Barangay / Address', report.barangay ?? '—'],
+    ['Report Ref',     report.reportReference ?? '—'],
+    ['Category',       report.category ?? '—'],
+    ['Location',       report.location ?? '—'],
     ['Date Submitted', report.submittedAt ? formatDate(report.submittedAt) : '—'],
-    ['Status', report.status ?? '—'],
+    ['Status',         report.status ?? '—'],
     ['GPS Coordinates',
       report.latitude != null && report.longitude != null
         ? `${report.latitude}, ${report.longitude}`
@@ -410,13 +418,78 @@ async function openDetailModal(report) {
   body.appendChild(descHeading);
   body.appendChild(descPara);
 
-  // ── Full-size image ───────────────────────────────────────────────────────
-  if (report.imageUrl) {
-    const img = document.createElement('img');
-    img.className = 'detail-image';
-    img.src = report.imageUrl;
-    img.alt = 'Report image';
-    body.appendChild(img);
+  // ── Evidence (photo + video) ──────────────────────────────────────────────
+  if (report.imageUrl || report.videoUrl) {
+    const evidenceHeading = document.createElement('h3');
+    evidenceHeading.textContent = 'Evidence';
+    evidenceHeading.className = 'modal-section-heading';
+    body.appendChild(evidenceHeading);
+
+    const evidenceWrap = document.createElement('div');
+    evidenceWrap.className = 'evidence-wrap';
+
+    // Photo
+    if (report.imageUrl) {
+      const photoWrap = document.createElement('div');
+      photoWrap.className = 'evidence-item';
+
+      const photoLabel = document.createElement('p');
+      photoLabel.className = 'evidence-label';
+      photoLabel.textContent = '📷 Photo Evidence';
+      photoWrap.appendChild(photoLabel);
+
+      const img = document.createElement('img');
+      img.className = 'detail-image';
+      img.src = report.imageUrl;
+      img.alt = 'Photo evidence';
+      img.loading = 'lazy';
+
+      // Click to open full size
+      img.style.cursor = 'pointer';
+      img.title = 'Click to open full size';
+      img.addEventListener('click', () => window.open(report.imageUrl, '_blank'));
+
+      photoWrap.appendChild(img);
+      evidenceWrap.appendChild(photoWrap);
+    }
+
+    // Video
+    if (report.videoUrl) {
+      const videoWrap = document.createElement('div');
+      videoWrap.className = 'evidence-item';
+
+      const videoLabel = document.createElement('p');
+      videoLabel.className = 'evidence-label';
+      videoLabel.textContent = '🎥 Video Evidence';
+      videoWrap.appendChild(videoLabel);
+
+      const video = document.createElement('video');
+      video.className = 'detail-video';
+      video.src = report.videoUrl;
+      video.controls = true;
+      video.preload = 'metadata';
+      video.setAttribute('aria-label', 'Video evidence');
+
+      videoWrap.appendChild(video);
+
+      // Open in new tab link
+      const videoLink = document.createElement('a');
+      videoLink.href = report.videoUrl;
+      videoLink.target = '_blank';
+      videoLink.rel = 'noopener noreferrer';
+      videoLink.textContent = 'Open video in new tab';
+      videoLink.className = 'evidence-external-link';
+      videoWrap.appendChild(videoLink);
+
+      evidenceWrap.appendChild(videoWrap);
+    }
+
+    body.appendChild(evidenceWrap);
+  } else {
+    const noEvidence = document.createElement('p');
+    noEvidence.className = 'no-evidence';
+    noEvidence.textContent = 'No photo or video evidence submitted.';
+    body.appendChild(noEvidence);
   }
 
   // ── Status history timeline ───────────────────────────────────────────────
@@ -537,7 +610,7 @@ function buildCard(report, rowNum) {
       <span class="concern-card__num">#${rowNum}</span>
       <span class="concern-card__category">${report.category ?? '—'}</span>
     </div>
-    <p class="concern-card__resident">${report.residentName ?? '—'}</p>
+    <p class="concern-card__resident">${report.userName ?? report.residentName ?? '—'}</p>
     <p class="concern-card__desc">${(report.description ?? '').slice(0, 80)}${(report.description ?? '').length > 80 ? '…' : ''}</p>
     <div class="concern-card__footer">
       <span class="concern-card__date">${report.submittedAt ? formatDate(report.submittedAt) : '—'}</span>
