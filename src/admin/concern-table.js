@@ -19,9 +19,22 @@ import {
   addDoc,
   getDocs,
   doc,
+  deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 import { statusBadge, formatDate, showToast } from '../shared/ui-helpers.js';
+
+// ---------------------------------------------------------------------------
+// Local helpers
+// ---------------------------------------------------------------------------
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -106,7 +119,7 @@ const SECTION_HTML = `
           <th>Category</th>
           <th>Description</th>
           <th>Date</th>
-          <th>Image</th>
+          <th>Evidence</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -163,12 +176,13 @@ function buildRow(report, rowNum) {
   const residentName = report.userName ?? report.residentName ?? '—';
   tdResident.innerHTML = `
     <span class="resident-name">${residentName}</span>
-    ${report.barangay ? `<br><span class="resident-barangay">${report.barangay}</span>` : ''}
+    ${report.reportReference ? `<br><span class="resident-barangay">${escapeHtml(report.reportReference)}</span>` : ''}
   `;
   tr.appendChild(tdResident);
 
   // Category
   const tdCategory = document.createElement('td');
+  tdCategory.className = 'category-cell';
   tdCategory.textContent = report.category ?? '—';
   tr.appendChild(tdCategory);
 
@@ -183,20 +197,29 @@ function buildRow(report, rowNum) {
   tdDate.textContent = report.submittedAt ? formatDate(report.submittedAt) : '—';
   tr.appendChild(tdDate);
 
-  // Image thumbnail
+  // Evidence thumbnail
   const tdImage = document.createElement('td');
   if (report.imageUrl) {
     const img = document.createElement('img');
     img.className = 'thumb';
     img.src = report.imageUrl;
-    img.alt = 'Report image';
+    img.alt = 'Photo evidence';
     img.loading = 'lazy';
+    img.title = 'Photo evidence — click View Full Details to see full size';
     tdImage.appendChild(img);
-  } else {
+  } else if (report.videoUrl) {
     const placeholder = document.createElement('span');
     placeholder.className = 'thumb-placeholder';
-    placeholder.setAttribute('aria-label', 'No image');
-    placeholder.textContent = '📷';
+    placeholder.setAttribute('aria-label', 'Video evidence');
+    placeholder.title = 'Video evidence';
+    placeholder.textContent = '🎥';
+    tdImage.appendChild(placeholder);
+  } else {
+    const placeholder = document.createElement('span');
+    placeholder.className = 'thumb-placeholder thumb-placeholder--none';
+    placeholder.setAttribute('aria-label', 'No evidence submitted');
+    placeholder.title = 'No evidence submitted';
+    placeholder.textContent = '�️';
     tdImage.appendChild(placeholder);
   }
   tr.appendChild(tdImage);
@@ -210,7 +233,7 @@ function buildRow(report, rowNum) {
   // Actions cell
   const tdActions = document.createElement('td');
   tdActions.className = 'actions-cell';
-  tdActions.appendChild(buildActionsButton(report, tdStatus));
+  tdActions.appendChild(buildActionsButton(report, tdStatus, tdCategory));
   tr.appendChild(tdActions);
 
   return tr;
@@ -223,7 +246,7 @@ function buildRow(report, rowNum) {
  * @param {HTMLElement} statusCell - The <td> holding the status badge (for optimistic UI).
  * @returns {HTMLElement} Wrapper containing the button (dropdown appended on click).
  */
-function buildActionsButton(report, statusCell) {
+function buildActionsButton(report, statusCell, categoryCell) {
   const wrapper = document.createElement('div');
   wrapper.style.position = 'relative';
 
@@ -236,7 +259,7 @@ function buildActionsButton(report, statusCell) {
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    toggleDropdown(report, statusCell, wrapper, btn);
+    toggleDropdown(report, statusCell, categoryCell, wrapper, btn);
   });
 
   wrapper.appendChild(btn);
@@ -246,7 +269,7 @@ function buildActionsButton(report, statusCell) {
 /**
  * Open or close the actions dropdown for the given report.
  */
-function toggleDropdown(report, statusCell, wrapper, triggerBtn) {
+function toggleDropdown(report, statusCell, categoryCell, wrapper, triggerBtn) {
   // Close any existing open dropdown
   if (activeDropdown && activeDropdown !== wrapper.querySelector('.actions-dropdown')) {
     closeActiveDropdown();
@@ -283,8 +306,31 @@ function toggleDropdown(report, statusCell, wrapper, triggerBtn) {
     showInlineStatusSelect(report, statusCell);
   });
 
+  // ── Change Category ───────────────────────────────────────────────────────
+  const changeCategoryBtn = document.createElement('button');
+  changeCategoryBtn.type = 'button';
+  changeCategoryBtn.textContent = 'Change Category';
+  changeCategoryBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeActiveDropdown();
+    showInlineCategorySelect(report, categoryCell);
+  });
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.textContent = '🗑 Delete Report';
+  deleteBtn.className = 'actions-dropdown__delete';
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeActiveDropdown();
+    confirmDeleteReport(report);
+  });
+
   dropdown.appendChild(viewBtn);
   dropdown.appendChild(changeStatusBtn);
+  dropdown.appendChild(changeCategoryBtn);
+  dropdown.appendChild(deleteBtn);
   wrapper.appendChild(dropdown);
   triggerBtn.setAttribute('aria-expanded', 'true');
   activeDropdown = dropdown;
@@ -353,6 +399,73 @@ function showInlineStatusSelect(report, statusCell) {
   });
 
   statusCell.appendChild(select);
+  select.focus();
+}
+
+/**
+ * Inject an inline <select> into the category cell for changing category.
+ *
+ * @param {Object}      report       - Report data with `.id` and `.category`.
+ * @param {HTMLElement} categoryCell - <td> holding the category text.
+ */
+function showInlineCategorySelect(report, categoryCell) {
+  // Store original text in case we need to revert
+  const originalCategory = report.category ?? '—';
+
+  categoryCell.innerHTML = '';
+
+  const CATEGORIES = [
+    'Health',
+    'Transportation',
+    'Environment',
+    'Consumer Issue',
+    'Others',
+  ];
+
+  const select = document.createElement('select');
+  select.className = 'status-inline-select';
+
+  CATEGORIES.forEach((val) => {
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = val;
+    if (val === report.category) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener('change', async () => {
+    const newCategory = select.value;
+
+    // Optimistic update
+    categoryCell.innerHTML = '';
+    categoryCell.textContent = newCategory;
+    report.category = newCategory;
+
+    try {
+      await updateDoc(doc(db, 'reports', report.id), {
+        category: newCategory,
+        updatedAt: serverTimestamp(),
+      });
+      showToast(`Category updated to "${newCategory}"`, 'success');
+    } catch (err) {
+      console.error('[concern-table] Category update failed:', err);
+      showToast('Failed to update category. Please try again.', 'error');
+      // Revert
+      categoryCell.innerHTML = '';
+      categoryCell.textContent = originalCategory;
+      report.category = originalCategory;
+    }
+  });
+
+  // Cancel on blur (click outside) — restore text without saving
+  select.addEventListener('blur', () => {
+    if (categoryCell.contains(select)) {
+      categoryCell.innerHTML = '';
+      categoryCell.textContent = report.category ?? '—';
+    }
+  });
+
+  categoryCell.appendChild(select);
   select.focus();
 }
 
@@ -538,6 +651,33 @@ async function openDetailModal(report) {
   // Show modal
   modal.hidden = false;
   document.getElementById('close-concern-modal')?.focus();
+}
+
+/**
+ * Show a confirmation dialog then delete the report from Firestore.
+ */
+async function confirmDeleteReport(report) {
+  const residentName = report.userName ?? report.residentName ?? 'this resident';
+  const confirmed = window.confirm(
+    `Delete report "${report.reportReference}" by ${residentName}?\n\nThis cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  // Optimistically remove from local array and re-render
+  const idx = allReports.findIndex(r => r.id === report.id);
+  if (idx !== -1) allReports.splice(idx, 1);
+  render(false);
+
+  try {
+    await deleteDoc(doc(db, 'reports', report.id));
+    showToast('Report deleted successfully.', 'success');
+  } catch (err) {
+    console.error('[concern-table] Delete failed:', err);
+    // Revert — re-insert the report at the same position
+    if (idx !== -1) allReports.splice(idx, 0, report);
+    render(false);
+    showToast('Failed to delete report. Please try again.', 'error');
+  }
 }
 
 /**
