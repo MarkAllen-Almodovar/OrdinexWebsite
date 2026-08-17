@@ -166,7 +166,7 @@ Implement the BEE-Alerta web application using HTML, CSS, and vanilla JavaScript
     - Test: Ollama error → error bubble shown; if partial content exists, it is rendered before error bubble
     - _Requirements: 6.3, 6.5_
 
-- [~] 11. Checkpoint — Resident interface complete
+- [ ] 11. Checkpoint — Resident interface complete
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Admin SPA shell and sidebar navigation
@@ -247,7 +247,7 @@ Implement the BEE-Alerta web application using HTML, CSS, and vanilla JavaScript
     - **Feature: bee-alerta, Property 8.9**
     - _Requirements: 8.9_
 
-- [~] 15. Checkpoint — Admin Dashboard and Concern Management working
+- [ ] 15. Checkpoint — Admin Dashboard and Concern Management working
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 16. Admin Settings section
