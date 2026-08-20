@@ -1041,129 +1041,130 @@ async function openDetailModal(report) {
   puFile?.addEventListener('change', () => { if (puFile.files[0]) setPuFile(puFile.files[0]); });
 
   // Submit update
-  // Submit update — advances status in fixed flow: Pending → Ongoing → Completed
+
+
+  // Submit update — posts message only; does NOT change status.
+  // Status is advanced/reverted using the stepper buttons below.
   const puSubmit = postUpdateSection.querySelector('#pu-submit-' + reportIdForUpdate);
   puSubmit?.addEventListener('click', async () => {
     const titleVal = postUpdateSection.querySelector('#pu-title-' + reportIdForUpdate)?.value.trim() ?? '';
     const msgVal   = postUpdateSection.querySelector('#pu-msg-'   + reportIdForUpdate)?.value.trim() ?? '';
     if (!msgVal) { showToast('Please provide an update message.', 'error'); return; }
 
-    const STATUS_FLOW_UPD = ['Pending', 'Ongoing', 'Completed'];
-    const curIdx     = STATUS_FLOW_UPD.indexOf(report.status ?? 'Pending');
-    const nextStatus = curIdx < STATUS_FLOW_UPD.length - 1 ? STATUS_FLOW_UPD[curIdx + 1] : STATUS_FLOW_UPD[curIdx];
+    puSubmit.disabled = true;
+    puSubmit.textContent = 'Posting...';
 
-    // Helper: clear form, rebuild stepper, update table badge
-    const doRefresh = (newStatus) => {
-      postUpdateSection.querySelector('#pu-title-' + reportIdForUpdate).value = '';
-      postUpdateSection.querySelector('#pu-msg-'   + reportIdForUpdate).value = '';
-      clearPuFile();
-      report.status = newStatus;
-      buildStepper(newStatus);
-      const tableRow = document.querySelector('tr[data-id="' + reportIdForUpdate + '"]');
-      if (tableRow) {
-        const statusTd = tableRow.querySelector('.status-cell');
-        if (statusTd) { statusTd.innerHTML = ''; statusTd.appendChild(statusBadge(newStatus)); }
-      }
-      showToast('Update posted. Status moved to "' + newStatus + '".', 'success');
-    };
-
-    // Advancing to Completed requires evidence
-    if (nextStatus === 'Completed') {
-      const result = await showCompletionEvidenceModal();
-      if (!result.confirmed) return;
-      puSubmit.disabled = true; puSubmit.textContent = 'Posting...';
-      try {
-        await addDoc(collection(db, 'reports', reportIdForUpdate, 'statusHistory'), {
-          status: nextStatus, updatedAt: serverTimestamp(), updatedBy: currentUid,
-          updateTitle: titleVal || null, updateMessage: msgVal,
-          ...(result.url ? { evidenceUrl: result.url, evidenceType: result.type } : {}),
-        });
-        await updateDoc(doc(db, 'reports', reportIdForUpdate), {
-          status: nextStatus, lastUpdate: msgVal, updatedAt: serverTimestamp(),
-          ...(result.url ? { [result.type === 'video' ? 'completionVideoUrl' : 'completionImageUrl']: result.url } : {}),
-        });
-        doRefresh(nextStatus);
-      } catch (err) {
-        console.error('[post-update]', err);
-        showToast('Failed to post update. Please try again.', 'error');
-      } finally { puSubmit.disabled = false; puSubmit.textContent = 'UPDATE WORKFLOW'; }
-      return;
-    }
-
-    // Pending → Ongoing (or same status update)
-    puSubmit.disabled = true; puSubmit.textContent = 'Posting...';
     try {
       let evidenceUrl = null, evidenceType = null;
       if (puUploadFile) {
         evidenceUrl  = await uploadToCloudinary(puUploadFile);
         evidenceType = puUploadFile.type.startsWith('video') ? 'video' : 'image';
       }
+
+      // Write update message to status history (keeps current status)
       await addDoc(collection(db, 'reports', reportIdForUpdate, 'statusHistory'), {
-        status: nextStatus, updatedAt: serverTimestamp(), updatedBy: currentUid,
-        updateTitle: titleVal || null, updateMessage: msgVal,
+        status: report.status ?? 'Pending',   // keep current status
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUid,
+        updateTitle: titleVal || null,
+        updateMessage: msgVal,
         ...(evidenceUrl ? { evidenceUrl, evidenceType } : {}),
       });
+
+      // Update lastUpdate on the report doc (visible to resident)
       await updateDoc(doc(db, 'reports', reportIdForUpdate), {
-        status: nextStatus, lastUpdate: msgVal, updatedAt: serverTimestamp(),
+        lastUpdate: msgVal,
+        updatedAt:  serverTimestamp(),
       });
-      doRefresh(nextStatus);
+
+      // Clear form
+      postUpdateSection.querySelector('#pu-title-' + reportIdForUpdate).value = '';
+      postUpdateSection.querySelector('#pu-msg-'   + reportIdForUpdate).value = '';
+      clearPuFile();
+      showToast('Update posted successfully.', 'success');
     } catch (err) {
       console.error('[post-update]', err);
       showToast('Failed to post update. Please try again.', 'error');
-    } finally { puSubmit.disabled = false; puSubmit.textContent = 'UPDATE WORKFLOW'; }
+    } finally {
+      puSubmit.disabled = false;
+      puSubmit.textContent = 'UPDATE WORKFLOW';
+    }
   });
 
 
-  // ── Status stepper (Pending → Ongoing → Completed) ──────────────────────
-  const STATUS_FLOW = ['Pending', 'Ongoing', 'Completed'];
+
+  // ── Status stepper ───────────────────────────────────────────────────────
+  // Flow:  Pending → Under Review → Ongoing → Completed
+  // Admin can also move Ongoing back to Under Review ("Back to Review")
+
+  const STATUS_STEPS = [
+    { key: 'Pending',      label: 'Pending',      emoji: '📋' },
+    { key: 'Under Review', label: 'Under Review', emoji: '🔍' },
+    { key: 'Ongoing',      label: 'In Progress',  emoji: '🔧' },
+    { key: 'Completed',    label: 'Completed',    emoji: '✅' },
+  ];
 
   function buildStepper(currentStatus) {
     const stepper = postUpdateSection.querySelector('#pu-stepper-' + reportIdForUpdate);
     if (!stepper) return;
     stepper.innerHTML = '';
 
-    const currentIdx = STATUS_FLOW.indexOf(currentStatus);
+    const currentIdx = STATUS_STEPS.findIndex(s => s.key === currentStatus);
 
-    STATUS_FLOW.forEach((step, idx) => {
+    STATUS_STEPS.forEach((step, idx) => {
       const stepEl = document.createElement('div');
       stepEl.className = 'status-stepper__step';
 
+      // Dot with emoji
       const dot = document.createElement('div');
       dot.className = 'status-stepper__dot';
       if (idx < currentIdx)  dot.classList.add('status-stepper__dot--done');
       if (idx === currentIdx) dot.classList.add('status-stepper__dot--active');
       if (idx > currentIdx)  dot.classList.add('status-stepper__dot--future');
-      dot.textContent = idx < currentIdx ? '✓' : (idx + 1);
+      dot.textContent = idx < currentIdx ? '✓' : step.emoji;
 
       const label = document.createElement('span');
       label.className = 'status-stepper__label';
-      label.textContent = step;
+      label.textContent = step.label;
 
       stepEl.appendChild(dot);
       stepEl.appendChild(label);
 
-      // Only allow advancing to the next step
+      // Advance button: only for the immediate next step
       if (idx === currentIdx + 1) {
         const advBtn = document.createElement('button');
         advBtn.type = 'button';
         advBtn.className = 'status-stepper__advance-btn';
-        advBtn.textContent = 'Move to ' + step + ' →';
+        advBtn.textContent = step.emoji + ' Move to ' + step.label;
         advBtn.addEventListener('click', async () => {
-          if (step === 'Completed') {
+          if (step.key === 'Completed') {
             const result = await showCompletionEvidenceModal();
             if (!result.confirmed) return;
-            await applyStatusChange(step, result);
+            await applyStatusChange(step.key, result);
           } else {
-            await applyStatusChange(step, { url: null, type: null });
+            await applyStatusChange(step.key, { url: null, type: null });
           }
         });
         stepEl.appendChild(advBtn);
       }
 
-      // Connector line
-      if (idx < STATUS_FLOW.length - 1) {
+      // "Back to Review" button: only when current = Ongoing
+      if (step.key === 'Under Review' && currentStatus === 'Ongoing') {
+        const backBtn = document.createElement('button');
+        backBtn.type = 'button';
+        backBtn.className = 'status-stepper__back-btn';
+        backBtn.textContent = '↩ Back to Review';
+        backBtn.addEventListener('click', async () => {
+          await applyStatusChange('Under Review', { url: null, type: null });
+        });
+        stepEl.appendChild(backBtn);
+      }
+
+      // Connector line between steps
+      if (idx < STATUS_STEPS.length - 1) {
         const line = document.createElement('div');
-        line.className = 'status-stepper__line' + (idx < currentIdx ? ' status-stepper__line--done' : '');
+        line.className = 'status-stepper__line' +
+          (idx < currentIdx ? ' status-stepper__line--done' : '');
         stepper.appendChild(stepEl);
         stepper.appendChild(line);
       } else {
@@ -1187,22 +1188,23 @@ async function openDetailModal(report) {
         ...(result.url ? { evidenceUrl: result.url, evidenceType: result.type } : {}),
       });
 
-      // Also update the table row's status cell live
-      const tableRow = document.querySelector(`tr[data-id="${reportIdForUpdate}"]`);
+      // Update table row badge live
+      const tableRow = document.querySelector('tr[data-id="' + reportIdForUpdate + '"]');
       if (tableRow) {
         const statusTd = tableRow.querySelector('.status-cell');
-        if (statusTd) setStatusCell(statusTd, newStatus);
+        if (statusTd) { statusTd.innerHTML = ''; statusTd.appendChild(statusBadge(newStatus)); }
       }
 
       report.status = newStatus;
       buildStepper(newStatus);
-      showToast('Status updated to "' + newStatus + '".', 'success');
+      showToast('Status moved to "' + newStatus + '".', 'success');
     } catch (err) {
       console.error('[status-stepper]', err);
       showToast('Failed to update status. Please try again.', 'error');
     }
   }
 
+  buildStepper(report.status ?? 'Pending');
   buildStepper(report.status ?? 'Pending');
 
 
