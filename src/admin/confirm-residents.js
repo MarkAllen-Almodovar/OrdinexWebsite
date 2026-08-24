@@ -23,10 +23,24 @@ import {
   orderBy,
   onSnapshot,
   updateDoc,
+  addDoc,
   doc,
   serverTimestamp,
 } from 'firebase/firestore';
 import { showToast } from '../shared/ui-helpers.js';
+
+// Helper: write an admin notification document
+async function notifyAdmin(type, title, body, meta = {}) {
+  try {
+    await addDoc(collection(db, 'admin_notifications'), {
+      type, title, body, meta,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error('[confirm-residents] notify error:', err);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -406,6 +420,33 @@ async function handleAction(uid, action, adminUid) {
       reviewedBy: adminUid,
       reviewedAt: serverTimestamp(),
     });
+
+    const residentName = resident?.displayName ?? resident?.fullName ?? 'A resident';
+    const barangay     = resident?.barangay ?? '';
+
+    // Admin notification — logged for the admin feed
+    await notifyAdmin(
+      'new_signup',
+      action === 'approve'
+        ? `Resident Approved: ${residentName}`
+        : `Resident Rejected: ${residentName}`,
+      action === 'approve'
+        ? `${residentName}${barangay ? ' (' + barangay + ')' : ''} has been approved and can now log in.`
+        : `${residentName}'s registration was rejected.`,
+      { userId: uid, residentName }
+    );
+
+    // Resident notification — they see this in their alerts tab
+    await addDoc(collection(db, 'users', uid, 'notifications'), {
+      type: action === 'approve' ? 'account_approved' : 'account_rejected',
+      title: action === 'approve' ? '✅ Account Approved' : '❌ Registration Rejected',
+      body: action === 'approve'
+        ? 'Your BEE-Alert account has been approved. You can now log in and submit reports.'
+        : 'Your BEE-Alert registration was not approved. Please contact the municipal office.',
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+
     showToast(
       action === 'approve'
         ? 'Resident approved successfully.'
@@ -550,7 +591,28 @@ export function init(container, uid) {
   unsubscribe = onSnapshot(
     residentsQuery,
     (snapshot) => {
+      // Detect genuinely new documents (not initial load)
+      const isInitialLoad = allResidents.length === 0;
+      const previousIds = new Set(allResidents.map(r => r.id));
+
       allResidents = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      if (!isInitialLoad) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added' && !previousIds.has(change.doc.id)) {
+            const data = change.doc.data();
+            const name = data.displayName ?? data.fullName ?? 'A new resident';
+            const barangay = data.barangay ?? '';
+            notifyAdmin(
+              'new_signup',
+              `New Sign-Up: ${name}`,
+              `${name}${barangay ? ' from ' + barangay : ''} has registered and is waiting for approval.`,
+              { userId: change.doc.id, residentName: name }
+            );
+          }
+        });
+      }
+
       render();
     },
     (err) => {

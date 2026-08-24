@@ -7,6 +7,7 @@ import { authGuard } from '../shared/auth-guard.js';
 const SECTION_MODULES = {
   'dashboard':           () => import('../admin/dashboard.js'),
   'concern-management':  () => import('../admin/concern-table.js'),
+  'notifications':       () => import('../admin/notifications.js'),
   'confirm-residents':   () => import('../admin/confirm-residents.js'),
   'settings':            () => import('../admin/settings.js'),
 };
@@ -46,7 +47,7 @@ async function activateSection(sectionName, user) {
   } else if (initialisedSections.has(sectionName) && SECTION_MODULES[sectionName]) {
     // Re-run init on every visit for live-data sections so the
     // Firestore listener is always fresh (handles auth-state changes too)
-    if (sectionName === 'confirm-residents') {
+    if (sectionName === 'confirm-residents' || sectionName === 'notifications') {
       try {
         const module = await SECTION_MODULES[sectionName]();
         if (typeof module?.init === 'function') {

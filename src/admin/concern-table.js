@@ -24,6 +24,33 @@ import {
 } from 'firebase/firestore';
 import { statusBadge, formatDate, showToast } from '../shared/ui-helpers.js';
 
+// ── Notification helper ───────────────────────────────────────────────────────
+
+async function notifyAdmin(type, title, body, meta = {}) {
+  try {
+    await addDoc(collection(db, 'admin_notifications'), {
+      type, title, body, meta,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error('[concern-table] notifyAdmin error:', err);
+  }
+}
+
+async function notifyResident(userId, type, title, body, meta = {}) {
+  if (!userId) return;
+  try {
+    await addDoc(collection(db, 'users', userId, 'notifications'), {
+      type, title, body, meta,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error('[concern-table] notifyResident error:', err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Local helpers
 // ---------------------------------------------------------------------------
@@ -97,6 +124,8 @@ const SECTION_HTML = `
     <select id="filter-status">
       <option value="All">All Statuses</option>
       <option value="Pending">Pending</option>
+
+      <option value="Under Review">Under Review</option>
       <option value="Ongoing">Ongoing</option>
       <option value="Completed">Completed</option>
     </select>
@@ -132,7 +161,7 @@ const SECTION_HTML = `
 </div>
 <div id="concern-detail-modal" class="modal-overlay" role="dialog" aria-modal="true" hidden>
   <div class="modal modal--wide">
-    <button class="modal__close" id="close-concern-modal" aria-label="Close">Ã—</button>
+    <button class="modal__close" id="close-concern-modal" aria-label="Close">&times;</button>
     <h2 class="modal__title" id="concern-modal-title">Report Details</h2>
     <div id="concern-modal-body"></div>
   </div>
@@ -225,13 +254,16 @@ function buildRow(report, rowNum) {
 
 
 
-  // Status cell — plain badge, no click (status changed via detail modal)
+  // Status cell — click to change
   const tdStatus = document.createElement('td');
-  tdStatus.className = 'status-cell';
-  tdStatus.appendChild(statusBadge(report.status ?? 'Pending'));
+  tdStatus.className = 'status-cell status-cell--clickable';
+  tdStatus.title = 'Click to change status';
+  setStatusCell(tdStatus, report.status ?? 'Pending');
+  tdStatus.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showInlineStatusSelect(report, tdStatus);
+  });
   tr.appendChild(tdStatus);
-
-  // Actions cell — delete button
   const tdActions = document.createElement('td');
   tdActions.className = 'actions-cell';
   const delBtn = document.createElement('button');
@@ -413,7 +445,7 @@ function showCompletionEvidenceModal() {
     modal.style.maxWidth = '480px';
     modal.style.width = '100%';
     modal.innerHTML = /* html */ `
-      <button class="modal__close" id="evidence-modal-close" aria-label="Close">Ã—</button>
+      <button class="modal__close" id="evidence-modal-close" aria-label="Close">&times;</button>
       <h2 class="modal__title">Upload Completion Evidence (Required)</h2>
       <p style="font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:var(--space-4);">
         Evidence is required. Please attach a photo or video showing that the issue has been resolved
@@ -664,68 +696,199 @@ function setStatusCell(cell, status) {
 }
 
 function showInlineStatusSelect(report, statusCell, anchorEl) {
+
   showCustomDropdown(
     anchorEl ?? statusCell,
-    ['Pending', 'Ongoing', 'Completed'],
+    ['Pending', 'Under Review', 'Ongoing', 'Completed'],
     report.status ?? 'Pending',
-    async (newStatus) => {
-      if (newStatus === 'Completed') {
-        const result = await showCompletionEvidenceModal();
-        if (!result.confirmed) return;
-
-        setStatusCell(statusCell, newStatus);
-
-        report.status = newStatus;
-
-        try {
-          const reportRef = doc(db, 'reports', report.id);
-          const updateData = { status: newStatus, updatedAt: serverTimestamp() };
-          if (result.url) {
-            updateData[result.type === 'video' ? 'completionVideoUrl' : 'completionImageUrl'] = result.url;
-          }
-          await updateDoc(reportRef, updateData);
-          await addDoc(collection(db, 'reports', report.id, 'statusHistory'), {
-            status: newStatus,
-            updatedAt: serverTimestamp(),
-            updatedBy: currentUid,
-            ...(result.url ? { evidenceUrl: result.url, evidenceType: result.type } : {}),
-          });
-          showToast(
-            result.url ? 'Status updated to "Completed" with evidence.' : 'Status updated to "Completed".',
-            'success'
-          );
-        } catch (err) {
-          console.error('[concern-table] Status update failed:', err);
-          showToast('Failed to update status. Please try again.', 'error');
-        setStatusCell(statusCell, report.status);
-
-        }
-        return;
-      }
-
-      // Non-Completed
-        setStatusCell(statusCell, newStatus);
-
-      report.status = newStatus;
-
-      try {
-        await updateDoc(doc(db, 'reports', report.id), { status: newStatus, updatedAt: serverTimestamp() });
-        await addDoc(collection(db, 'reports', report.id, 'statusHistory'), {
-          status: newStatus,
-          updatedAt: serverTimestamp(),
-          updatedBy: currentUid,
-        });
-        showToast(`Status updated to "${newStatus}"`, 'success');
-      } catch (err) {
-        console.error('[concern-table] Status update failed:', err);
-        showToast('Failed to update status. Please try again.', 'error');
-        setStatusCell(statusCell, report.status);
-
-      }
+    (selectedStatus) => {
+      // Close modal if open, then open the detail modal with the update form
+      closeDetailModal();
+      openDetailModalWithForm(report, statusCell, selectedStatus);
     }
   );
 }
 
+/**
+ * Open the report detail modal and scroll to / show the update form
+ * pre-filled with the selected status. Status only changes on form submit.
+ */
+async function openDetailModalWithForm(report, statusCell, pendingStatus) {
+  // Open the detail modal first (reuse existing function)
+  await openDetailModal(report);
+
+  const rid = report.id;
+
+  // Build the update form and append it to the modal body
+  const body = document.getElementById('concern-modal-body');
+  if (!body) return;
+
+  // Remove any existing update form
+  body.querySelector('.status-update-form-wrap')?.remove();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'status-update-form-wrap';
+
+  const isCompleted = pendingStatus === 'Completed';
+
+  wrap.innerHTML = `
+    <div class="post-update-card post-update-card--status-change">
+      <h3 class="post-update-card__title">
+        Update Status to <span class="status-update-form-wrap__badge">${escapeHtml(pendingStatus)}</span>
+      </h3>
+      <p class="post-update-card__desc">Fill in the details below. The status will change when you click Submit.</p>
+
+      <label class="post-update-card__label">UPDATE TITLE <span style="color:var(--color-text-muted)">(optional)</span></label>
+      <input type="text" id="suf-title-${rid}" class="post-update-card__input"
+             placeholder="e.g., Site Inspection Completed" />
+
+      <label class="post-update-card__label">UPDATE MESSAGE <span style="color:red">*</span></label>
+      <textarea id="suf-msg-${rid}" rows="4" class="post-update-card__textarea"
+                placeholder="Describe what was done or what is happening..."></textarea>
+
+      ${isCompleted ? `
+      <label class="post-update-card__label">COMPLETION EVIDENCE <span style="color:red">*</span></label>
+      <div id="suf-zone-${rid}" class="post-update-card__upload-zone"
+           tabindex="0" role="button" aria-label="Upload completion evidence">
+        <input type="file" id="suf-file-${rid}" accept="image/*,video/*"
+               style="display:none" aria-hidden="true" />
+        <div id="suf-preview-${rid}" class="post-update-card__upload-inner">
+          <svg class="post-update-card__upload-icon" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+          </svg>
+          <span class="post-update-card__upload-title">Upload Evidence Photo / Video</span>
+          <span class="post-update-card__upload-hint">Required &mdash; JPG, PNG, MP4 up to 100MB</span>
+        </div>
+      </div>` : ''}
+
+      <div style="display:flex;gap:var(--space-3);margin-top:var(--space-3);">
+        <button type="button" id="suf-cancel-${rid}"
+                class="post-update-card__status-btn" style="flex:1">
+          Cancel
+        </button>
+        <button type="button" id="suf-submit-${rid}"
+                class="post-update-card__submit-btn"
+                style="flex:2" ${isCompleted ? 'disabled' : ''}>
+          Submit &amp; Change Status
+        </button>
+      </div>
+    </div>
+  `;
+
+  body.appendChild(wrap);
+
+  // Scroll form into view
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Evidence upload (Completed only)
+  let evidenceFile = null;
+  if (isCompleted) {
+    const zone    = wrap.querySelector('#suf-zone-' + rid);
+    const fileIn  = wrap.querySelector('#suf-file-' + rid);
+    const preview = wrap.querySelector('#suf-preview-' + rid);
+    const submitBtn = wrap.querySelector('#suf-submit-' + rid);
+
+    function setEvidenceFile(f) {
+      evidenceFile = f;
+      submitBtn.disabled = !f;
+      preview.innerHTML = '';
+      if (f.type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(f);
+        img.style.cssText = 'width:100%;max-height:120px;object-fit:cover;border-radius:8px;';
+        preview.appendChild(img);
+      } else {
+        const lbl = document.createElement('span');
+        lbl.className = 'post-update-card__upload-title';
+        lbl.textContent = f.name;
+        preview.appendChild(lbl);
+      }
+      const rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'post-update-card__upload-remove';
+      rm.textContent = 'Remove';
+      rm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        evidenceFile = null; fileIn.value = '';
+        submitBtn.disabled = true;
+        preview.innerHTML = `
+          <span class="post-update-card__upload-title">Upload Evidence Photo / Video</span>`;
+      });
+      preview.appendChild(rm);
+    }
+
+    zone?.addEventListener('click', () => fileIn?.click());
+    zone?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileIn?.click(); });
+    zone?.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('post-update-card__upload-zone--drag'); });
+    zone?.addEventListener('dragleave', () => zone.classList.remove('post-update-card__upload-zone--drag'));
+    zone?.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('post-update-card__upload-zone--drag'); if (e.dataTransfer.files[0]) setEvidenceFile(e.dataTransfer.files[0]); });
+    fileIn?.addEventListener('change', () => { if (fileIn.files[0]) setEvidenceFile(fileIn.files[0]); });
+  }
+
+  // Cancel
+  wrap.querySelector('#suf-cancel-' + rid)?.addEventListener('click', () => {
+    wrap.remove();
+  });
+
+  // Submit — only NOW the status changes
+  wrap.querySelector('#suf-submit-' + rid)?.addEventListener('click', async () => {
+    const titleVal = wrap.querySelector('#suf-title-' + rid)?.value.trim() ?? '';
+    const msgVal   = wrap.querySelector('#suf-msg-'   + rid)?.value.trim() ?? '';
+
+    if (!msgVal) { showToast('Please provide an update message.', 'error'); return; }
+    if (isCompleted && !evidenceFile) { showToast('Please upload completion evidence.', 'error'); return; }
+
+    const submitBtn = wrap.querySelector('#suf-submit-' + rid);
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+
+    try {
+      let evUrl = null, evType = null;
+      if (evidenceFile) {
+        evUrl  = await uploadToCloudinary(evidenceFile);
+        evType = evidenceFile.type.startsWith('video') ? 'video' : 'image';
+      }
+
+      const updateData = { status: pendingStatus, updatedAt: serverTimestamp() };
+      if (msgVal)  updateData.lastUpdate = msgVal;
+      if (evUrl)   updateData[evType === 'video' ? 'completionVideoUrl' : 'completionImageUrl'] = evUrl;
+
+      await updateDoc(doc(db, 'reports', report.id), updateData);
+      await addDoc(collection(db, 'reports', report.id, 'statusHistory'), {
+        status: pendingStatus,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUid,
+        updateTitle: titleVal || null,
+        updateMessage: msgVal,
+        ...(evUrl ? { evidenceUrl: evUrl, evidenceType: evType } : {}),
+      });
+
+      // Notify resident
+      notifyResident(report.userId, 'report_update',
+        titleVal || ('Report Status: ' + pendingStatus),
+        msgVal,
+        { reportId: report.id, reportRef: report.reportReference }
+      );
+
+      // Update table badge
+      report.status = pendingStatus;
+      const tr = document.querySelector('tr[data-id="' + report.id + '"]');
+      if (tr) {
+        const td = tr.querySelector('.status-cell');
+        if (td) setStatusCell(td, pendingStatus);
+      }
+
+      wrap.remove();
+      showToast('Status changed to "' + pendingStatus + '" successfully.', 'success');
+    } catch (err) {
+      console.error('[status-form]', err);
+      showToast('Failed to update status. Please try again.', 'error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit & Change Status';
+    }
+  });
+
+}
 // ---------------------------------------------------------------------------
 // Inline category select
 // ---------------------------------------------------------------------------
@@ -746,6 +909,7 @@ function showInlineCategorySelect(report, categoryCell) {
           category: newCategory,
           updatedAt: serverTimestamp(),
         });
+        notifyResident(report.userId, 'report_update', 'Report Category Updated', 'Your report category was changed to "' + newCategory + '" by the municipal office.', { reportId: report.id, reportRef: report.reportReference });
         showToast('Category updated to "' + newCategory + '"', 'success');
       } catch (err) {
         console.error('[concern-table] Category update failed:', err);
@@ -938,275 +1102,6 @@ async function openDetailModal(report) {
   body.appendChild(histList);
 
 
-  // ── Post Update form ─────────────────────────────────────────────────────
-  const postUpdateSection = document.createElement('div');
-  postUpdateSection.className = 'post-update-section';
-  const reportIdForUpdate = report.id;
-
-  postUpdateSection.innerHTML = `
-    <div class="post-update-card">
-      <h3 class="post-update-card__title">Post Update</h3>
-
-      <label class="post-update-card__label">UPDATE TITLE</label>
-      <input type="text" id="pu-title-${reportIdForUpdate}"
-             class="post-update-card__input"
-             placeholder="e.g., Site Inspection Completed" />
-
-      <label class="post-update-card__label">UPDATE MESSAGE</label>
-      <textarea id="pu-msg-${reportIdForUpdate}" rows="4"
-                class="post-update-card__textarea"
-                placeholder="Provide detailed progress information for public or internal visibility..."></textarea>
-
-      <label class="post-update-card__label">PHOTO VERIFICATION</label>
-      <div id="pu-zone-${reportIdForUpdate}" class="post-update-card__upload-zone"
-           tabindex="0" role="button" aria-label="Upload site imagery">
-        <input type="file" id="pu-file-${reportIdForUpdate}"
-               accept="image/*,video/*" style="display:none" aria-hidden="true" />
-        <div id="pu-preview-${reportIdForUpdate}" class="post-update-card__upload-inner">
-          <svg class="post-update-card__upload-icon" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-            <circle cx="12" cy="13" r="4"/>
-            <line x1="12" y1="9" x2="12" y2="7"/>
-            <line x1="11" y1="8" x2="13" y2="8"/>
-          </svg>
-          <span class="post-update-card__upload-title">Upload Site Imagery</span>
-          <span class="post-update-card__upload-hint">JPG, PNG up to 10MB</span>
-        </div>
-      </div>
-
-      <button type="button" id="pu-submit-${reportIdForUpdate}"
-              class="post-update-card__submit-btn">
-        UPDATE WORKFLOW
-      </button>
-
-      <div class='status-stepper' id='pu-stepper-${reportIdForUpdate}'></div>
-
-
-
-    </div>
-  `;
-
-  body.appendChild(postUpdateSection);
-
-  // Wire upload zone
-  const puZone    = postUpdateSection.querySelector(`#pu-zone-${reportIdForUpdate}`);
-  const puFile    = postUpdateSection.querySelector(`#pu-file-${reportIdForUpdate}`);
-  const puPreview = postUpdateSection.querySelector(`#pu-preview-${reportIdForUpdate}`);
-  let   puUploadFile = null;
-
-  function setPuFile(f) {
-    puUploadFile = f;
-    puPreview.innerHTML = '';
-    const thumb = f.type.startsWith('image/') ? document.createElement('img') : null;
-    if (thumb) {
-      thumb.src = URL.createObjectURL(f);
-      thumb.style.cssText = 'width:100%;max-height:140px;object-fit:cover;border-radius:8px;';
-      puPreview.appendChild(thumb);
-    } else {
-      const label = document.createElement('span');
-      label.className = 'post-update-card__upload-title';
-      label.textContent = f.name;
-      puPreview.appendChild(label);
-    }
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'post-update-card__upload-remove';
-    removeBtn.textContent = '✕ Remove';
-    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); clearPuFile(); });
-    puPreview.appendChild(removeBtn);
-  }
-
-  function clearPuFile() {
-    puUploadFile = null;
-    if (puFile) puFile.value = '';
-    puPreview.innerHTML = `
-      <svg class="post-update-card__upload-icon" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-        <circle cx="12" cy="13" r="4"/>
-        <line x1="12" y1="9" x2="12" y2="7"/>
-        <line x1="11" y1="8" x2="13" y2="8"/>
-      </svg>
-      <span class="post-update-card__upload-title">Upload Site Imagery</span>
-      <span class="post-update-card__upload-hint">JPG, PNG up to 10MB</span>
-    `;
-  }
-
-  puZone?.addEventListener('click', () => puFile?.click());
-  puZone?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') puFile?.click(); });
-  puZone?.addEventListener('dragover',  (e) => { e.preventDefault(); puZone.classList.add('post-update-card__upload-zone--drag'); });
-  puZone?.addEventListener('dragleave', () => puZone.classList.remove('post-update-card__upload-zone--drag'));
-  puZone?.addEventListener('drop', (e) => { e.preventDefault(); puZone.classList.remove('post-update-card__upload-zone--drag'); if (e.dataTransfer.files[0]) setPuFile(e.dataTransfer.files[0]); });
-  puFile?.addEventListener('change', () => { if (puFile.files[0]) setPuFile(puFile.files[0]); });
-
-  // Submit update
-
-
-  // Submit update — posts message only; does NOT change status.
-  // Status is advanced/reverted using the stepper buttons below.
-  const puSubmit = postUpdateSection.querySelector('#pu-submit-' + reportIdForUpdate);
-  puSubmit?.addEventListener('click', async () => {
-    const titleVal = postUpdateSection.querySelector('#pu-title-' + reportIdForUpdate)?.value.trim() ?? '';
-    const msgVal   = postUpdateSection.querySelector('#pu-msg-'   + reportIdForUpdate)?.value.trim() ?? '';
-    if (!msgVal) { showToast('Please provide an update message.', 'error'); return; }
-
-    puSubmit.disabled = true;
-    puSubmit.textContent = 'Posting...';
-
-    try {
-      let evidenceUrl = null, evidenceType = null;
-      if (puUploadFile) {
-        evidenceUrl  = await uploadToCloudinary(puUploadFile);
-        evidenceType = puUploadFile.type.startsWith('video') ? 'video' : 'image';
-      }
-
-      // Write update message to status history (keeps current status)
-      await addDoc(collection(db, 'reports', reportIdForUpdate, 'statusHistory'), {
-        status: report.status ?? 'Pending',   // keep current status
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUid,
-        updateTitle: titleVal || null,
-        updateMessage: msgVal,
-        ...(evidenceUrl ? { evidenceUrl, evidenceType } : {}),
-      });
-
-      // Update lastUpdate on the report doc (visible to resident)
-      await updateDoc(doc(db, 'reports', reportIdForUpdate), {
-        lastUpdate: msgVal,
-        updatedAt:  serverTimestamp(),
-      });
-
-      // Clear form
-      postUpdateSection.querySelector('#pu-title-' + reportIdForUpdate).value = '';
-      postUpdateSection.querySelector('#pu-msg-'   + reportIdForUpdate).value = '';
-      clearPuFile();
-      showToast('Update posted successfully.', 'success');
-    } catch (err) {
-      console.error('[post-update]', err);
-      showToast('Failed to post update. Please try again.', 'error');
-    } finally {
-      puSubmit.disabled = false;
-      puSubmit.textContent = 'UPDATE WORKFLOW';
-    }
-  });
-
-
-
-  // ── Status stepper ───────────────────────────────────────────────────────
-  // Flow:  Pending → Under Review → Ongoing → Completed
-  // Admin can also move Ongoing back to Under Review ("Back to Review")
-
-  const STATUS_STEPS = [
-    { key: 'Pending',      label: 'Pending',      emoji: '📋' },
-    { key: 'Under Review', label: 'Under Review', emoji: '🔍' },
-    { key: 'Ongoing',      label: 'In Progress',  emoji: '🔧' },
-    { key: 'Completed',    label: 'Completed',    emoji: '✅' },
-  ];
-
-  function buildStepper(currentStatus) {
-    const stepper = postUpdateSection.querySelector('#pu-stepper-' + reportIdForUpdate);
-    if (!stepper) return;
-    stepper.innerHTML = '';
-
-    const currentIdx = STATUS_STEPS.findIndex(s => s.key === currentStatus);
-
-    STATUS_STEPS.forEach((step, idx) => {
-      const stepEl = document.createElement('div');
-      stepEl.className = 'status-stepper__step';
-
-      // Dot with emoji
-      const dot = document.createElement('div');
-      dot.className = 'status-stepper__dot';
-      if (idx < currentIdx)  dot.classList.add('status-stepper__dot--done');
-      if (idx === currentIdx) dot.classList.add('status-stepper__dot--active');
-      if (idx > currentIdx)  dot.classList.add('status-stepper__dot--future');
-      dot.textContent = idx < currentIdx ? '✓' : step.emoji;
-
-      const label = document.createElement('span');
-      label.className = 'status-stepper__label';
-      label.textContent = step.label;
-
-      stepEl.appendChild(dot);
-      stepEl.appendChild(label);
-
-      // Advance button: only for the immediate next step
-      if (idx === currentIdx + 1) {
-        const advBtn = document.createElement('button');
-        advBtn.type = 'button';
-        advBtn.className = 'status-stepper__advance-btn';
-        advBtn.textContent = step.emoji + ' Move to ' + step.label;
-        advBtn.addEventListener('click', async () => {
-          if (step.key === 'Completed') {
-            const result = await showCompletionEvidenceModal();
-            if (!result.confirmed) return;
-            await applyStatusChange(step.key, result);
-          } else {
-            await applyStatusChange(step.key, { url: null, type: null });
-          }
-        });
-        stepEl.appendChild(advBtn);
-      }
-
-      // "Back to Review" button: only when current = Ongoing
-      if (step.key === 'Under Review' && currentStatus === 'Ongoing') {
-        const backBtn = document.createElement('button');
-        backBtn.type = 'button';
-        backBtn.className = 'status-stepper__back-btn';
-        backBtn.textContent = '↩ Back to Review';
-        backBtn.addEventListener('click', async () => {
-          await applyStatusChange('Under Review', { url: null, type: null });
-        });
-        stepEl.appendChild(backBtn);
-      }
-
-      // Connector line between steps
-      if (idx < STATUS_STEPS.length - 1) {
-        const line = document.createElement('div');
-        line.className = 'status-stepper__line' +
-          (idx < currentIdx ? ' status-stepper__line--done' : '');
-        stepper.appendChild(stepEl);
-        stepper.appendChild(line);
-      } else {
-        stepper.appendChild(stepEl);
-      }
-    });
-  }
-
-  async function applyStatusChange(newStatus, result) {
-    try {
-      const reportRef = doc(db, 'reports', reportIdForUpdate);
-      const updateData = { status: newStatus, updatedAt: serverTimestamp() };
-      if (result.url) {
-        updateData[result.type === 'video' ? 'completionVideoUrl' : 'completionImageUrl'] = result.url;
-      }
-      await updateDoc(reportRef, updateData);
-      await addDoc(collection(db, 'reports', reportIdForUpdate, 'statusHistory'), {
-        status: newStatus,
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUid,
-        ...(result.url ? { evidenceUrl: result.url, evidenceType: result.type } : {}),
-      });
-
-      // Update table row badge live
-      const tableRow = document.querySelector('tr[data-id="' + reportIdForUpdate + '"]');
-      if (tableRow) {
-        const statusTd = tableRow.querySelector('.status-cell');
-        if (statusTd) { statusTd.innerHTML = ''; statusTd.appendChild(statusBadge(newStatus)); }
-      }
-
-      report.status = newStatus;
-      buildStepper(newStatus);
-      showToast('Status moved to "' + newStatus + '".', 'success');
-    } catch (err) {
-      console.error('[status-stepper]', err);
-      showToast('Failed to update status. Please try again.', 'error');
-    }
-  }
-
-  buildStepper(report.status ?? 'Pending');
-  buildStepper(report.status ?? 'Pending');
-
 
   // Show modal
   modal.hidden = false;
@@ -1219,21 +1114,26 @@ async function openDetailModal(report) {
 async function confirmDeleteReport(report) {
   const residentName = report.userName ?? report.residentName ?? 'this resident';
   const confirmed = window.confirm(
-    `Delete report "${report.reportReference}" by ${residentName}?\n\nThis cannot be undone.`
+    'Delete report "' + (report.reportReference ?? '') + '" by ' + residentName + '?\n\nThis cannot be undone.'
   );
   if (!confirmed) return;
 
-  // Optimistically remove from local array and re-render
   const idx = allReports.findIndex(r => r.id === report.id);
   if (idx !== -1) allReports.splice(idx, 1);
   render(false);
 
   try {
     await deleteDoc(doc(db, 'reports', report.id));
+    notifyResident(
+      report.userId,
+      'report_deleted',
+      'Report Removed',
+      'Your report "' + (report.reportReference ?? '') + '" (' + (report.category ?? '') + ') has been removed by the municipal office.',
+      { reportRef: report.reportReference }
+    );
     showToast('Report deleted successfully.', 'success');
   } catch (err) {
     console.error('[concern-table] Delete failed:', err);
-    // Revert â€” re-insert the report at the same position
     if (idx !== -1) allReports.splice(idx, 0, report);
     render(false);
     showToast('Failed to delete report. Please try again.', 'error');
@@ -1380,9 +1280,28 @@ export function init(container, uid) {
   unsubscribe = onSnapshot(
     reportsQuery,
     (snapshot) => {
-      allReports = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      currentPage = 1; // reset to page 1 on every remote update
+      const isInitialLoad = allReports.length === 0;
+      const previousIds   = new Set(allReports.map(r => r.id));
+
+      allReports  = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      currentPage = 1;
       render(false);
+
+      // Notify admin of genuinely new reports (skip initial load)
+      if (!isInitialLoad) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added' && !previousIds.has(change.doc.id)) {
+            const d   = change.doc.data();
+            const who = d.userName ?? d.residentName ?? 'A resident';
+            notifyAdmin(
+              'new_report',
+              `New Report: ${d.category ?? 'Concern'}`,
+              `${who} submitted a new ${d.category ?? 'concern'} report. Ref: ${d.reportReference ?? change.doc.id}`,
+              { reportId: change.doc.id, reportRef: d.reportReference, userId: d.userId, residentName: who }
+            );
+          }
+        });
+      }
     },
     (err) => {
       console.error('[concern-table] Firestore snapshot error:', err);
