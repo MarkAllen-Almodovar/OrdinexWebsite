@@ -1,5 +1,5 @@
-/**
- * Admin Settings — lazy-loaded by admin/app.js.
+﻿/**
+ * Admin Settings â€” lazy-loaded by admin/app.js.
  * Handles general settings + municipal contacts editor.
  * Contacts are stored in Firestore at `settings/contacts` and read
  * by the mobile app to display live phone numbers to residents.
@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { showToast } from '../shared/ui-helpers.js';
 
-// ── Default contacts ─────────────────────────────────────────────────────────
+// â”€â”€ Default contacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DEFAULT_CONTACTS = [
   { id: 'mayor',  name: "Municipal Mayor's Office", phone: '(072) 607-1234', email: 'mayor@bacnotan.gov.ph' },
@@ -22,7 +22,7 @@ const DEFAULT_CONTACTS = [
   { id: 'health', name: 'Rural Health Unit',        phone: '(072) 607-9012', email: 'health@bacnotan.gov.ph' },
 ];
 
-// ── HTML template ────────────────────────────────────────────────────────────
+// â”€â”€ HTML template â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SETTINGS_HTML = /* html */ `
 <div class="settings-section">
@@ -55,7 +55,7 @@ const SETTINGS_HTML = /* html */ `
       <button class="btn btn--primary"   id="save-contacts-btn">Save Contacts</button>
     </div>
     <p class="settings-save-hint" id="contacts-save-hint" hidden>
-      Unsaved changes — click "Save Contacts" to push to the mobile app.
+      Unsaved changes â€” click "Save Contacts" to push to the mobile app.
     </p>
   </div>
 
@@ -76,10 +76,29 @@ const SETTINGS_HTML = /* html */ `
       <input type="checkbox" id="show-resolved" role="switch" checked />
     </div>
   </div>
+
+  <!-- Credits -->
+  <div class='settings-card'>
+    <h2 class='settings-card__title'>Credits</h2>
+    <div class='credits-section'>
+      <div class='credits-logo'>
+        <img src='src/assets/logo.png' alt='BEE-Alert logo' width='64' height='64' style='border-radius:50%;object-fit:cover;' />
+      </div>
+      <h3 class='credits-app-name'>BEE-Alert</h3>
+      <p class='credits-tagline'>Municipal Ordinance Reporting App</p>
+      <p class='credits-municipality'>Municipality of Bacnotan, La Union</p>
+      <div class='credits-divider'></div>
+      <p class='credits-version'>Version 1.0.0</p>
+      <p class='credits-built'>Developed for the local government of Bacnotan, La Union.</p>
+      <div class='credits-divider'></div>
+      <p class='credits-team-label'>DEVELOPMENT TEAM</p>
+      <p class='credits-team'>Bacnotan LGU Digital Services</p>
+    </div>
+  </div>
 </div>
 `;
 
-// ── Exported pure helper ─────────────────────────────────────────────────────
+// â”€â”€ Exported pure helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function saveSettings(uid, settings) {
   await setDoc(
@@ -89,7 +108,7 @@ export async function saveSettings(uid, settings) {
   );
 }
 
-// ── Contact row builder ──────────────────────────────────────────────────────
+// â”€â”€ Contact row builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let contactIdCounter = 0;
 
@@ -117,7 +136,7 @@ function buildContactRow(contact, onDelete, onChanged) {
                placeholder="e.g. office@bacnotan.gov.ph" value="${escHtml(contact.email ?? '')}" />
       </div>
     </div>
-    <button class="btn contact-row__delete" type="button" title="Remove contact" aria-label="Remove contact">✕</button>
+    <button class="btn contact-row__delete" type="button" title="Remove contact" aria-label="Remove contact">âœ•</button>
   `;
 
   row.querySelector('.contact-row__delete').addEventListener('click', () => {
@@ -147,12 +166,12 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ── Module init ──────────────────────────────────────────────────────────────
+// â”€â”€ Module init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function init(container, uid) {
   container.innerHTML = SETTINGS_HTML;
 
-  // ── DOM refs ─────────────────────────────────────────────────────────────
+  // â”€â”€ DOM refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const displayNameInput   = container.querySelector('#display-name');
   const contactEmailInput  = container.querySelector('#contact-email');
   const saveGeneralBtn     = container.querySelector('#save-general-btn');
@@ -174,7 +193,7 @@ export async function init(container, uid) {
     contactsList.appendChild(row);
   }
 
-  // ── Load general settings ─────────────────────────────────────────────────
+  // â”€â”€ Load general settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     const snap = await getDoc(doc(db, 'settings', uid));
     if (snap.exists()) {
@@ -191,7 +210,7 @@ export async function init(container, uid) {
     showToast('Could not load settings. Please refresh.', 'error');
   }
 
-  // ── Load contacts ─────────────────────────────────────────────────────────
+  // â”€â”€ Load contacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     const contactsSnap = await getDoc(doc(db, 'settings', 'contacts'));
     const stored = contactsSnap.exists()
@@ -203,7 +222,7 @@ export async function init(container, uid) {
     DEFAULT_CONTACTS.forEach(c => addRow(c));
   }
 
-  // ── Add contact row ───────────────────────────────────────────────────────
+  // â”€â”€ Add contact row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   addContactBtn.addEventListener('click', () => {
     addRow({ id: `new-${Date.now()}`, name: '', phone: '', email: '' });
     markDirty();
@@ -211,7 +230,7 @@ export async function init(container, uid) {
     contactsList.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 
-  // ── Save contacts ─────────────────────────────────────────────────────────
+  // â”€â”€ Save contacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   saveContactsBtn.addEventListener('click', async () => {
     const contacts = readContactsFromDOM(contactsList);
 
@@ -246,7 +265,7 @@ export async function init(container, uid) {
     }
   });
 
-  // ── Save general settings ─────────────────────────────────────────────────
+  // â”€â”€ Save general settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   saveGeneralBtn.addEventListener('click', async () => {
     const displayName  = displayNameInput.value.trim();
     const contactEmail = contactEmailInput.value.trim();
@@ -263,7 +282,7 @@ export async function init(container, uid) {
     }
   });
 
-  // ── Toggles ───────────────────────────────────────────────────────────────
+  // â”€â”€ Toggles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   emailNotifToggle.addEventListener('change', async () => {
     try { await saveSettings(uid, { emailNotificationsEnabled: emailNotifToggle.checked }); }
     catch (err) { console.error('[settings] toggle error:', err); showToast('Could not save setting.', 'error'); }
@@ -274,13 +293,13 @@ export async function init(container, uid) {
     catch (err) { console.error('[settings] toggle error:', err); showToast('Could not save setting.', 'error'); }
   });
 
-  // ── Warn on unsaved changes ───────────────────────────────────────────────
+  // â”€â”€ Warn on unsaved changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   window.addEventListener('beforeunload', (e) => {
     if (contactsDirty) { e.preventDefault(); e.returnValue = ''; }
   }, { once: true });
 }
 
-// ── Private helpers ──────────────────────────────────────────────────────────
+// â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _appendRetryButton(referenceEl, onRetry) {
   const existing = referenceEl.parentElement?.querySelector('.btn--retry');
