@@ -714,82 +714,86 @@ function showInlineStatusSelect(report, statusCell, anchorEl) {
  * pre-filled with the selected status. Status only changes on form submit.
  */
 async function openDetailModalWithForm(report, statusCell, pendingStatus) {
-  // Open the detail modal first (reuse existing function)
-  await openDetailModal(report);
-
-  const rid = report.id;
-
-  // Build the update form and append it to the modal body
-  const body = document.getElementById('concern-modal-body');
-  if (!body) return;
-
-  // Remove any existing update form
-  body.querySelector('.status-update-form-wrap')?.remove();
-
-  const wrap = document.createElement('div');
-  wrap.className = 'status-update-form-wrap';
-
+  const rid         = report.id;
   const isCompleted = pendingStatus === 'Completed';
 
-  wrap.innerHTML = `
-    <div class="post-update-card post-update-card--status-change">
-      <h3 class="post-update-card__title">
-        Update Status to <span class="status-update-form-wrap__badge">${escapeHtml(pendingStatus)}</span>
-      </h3>
-      <p class="post-update-card__desc">Fill in the details below. The status will change when you click Submit.</p>
+  // ── Build a separate modal overlay ──────────────────────────────────────
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-overlay';
+  backdrop.style.cssText = 'display:flex;z-index:10001;';   // above detail modal
 
-      <label class="post-update-card__label">UPDATE TITLE <span style="color:var(--color-text-muted)">(optional)</span></label>
-      <input type="text" id="suf-title-${rid}" class="post-update-card__input"
-             placeholder="e.g., Site Inspection Completed" />
+  const panel = document.createElement('div');
+  panel.className = 'modal modal--update-status';
+  panel.style.cssText = 'max-width:480px;width:100%;max-height:90vh;overflow-y:auto;';
 
-      <label class="post-update-card__label">UPDATE MESSAGE <span style="color:red">*</span></label>
-      <textarea id="suf-msg-${rid}" rows="4" class="post-update-card__textarea"
-                placeholder="Describe what was done or what is happening..."></textarea>
+  panel.innerHTML = `
+    <button class="modal__close" id="suf-close-${rid}" aria-label="Close">&times;</button>
+    <h2 class="modal__title">
+      Update Status &rarr;
+      <span class="status-update-form-wrap__badge">${escapeHtml(pendingStatus)}</span>
+    </h2>
+    <p style="font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:var(--space-4);">
+      Fill in the details below. The status will only change when you click Submit.
+    </p>
 
-      ${isCompleted ? `
-      <label class="post-update-card__label">COMPLETION EVIDENCE <span style="color:red">*</span></label>
-      <div id="suf-zone-${rid}" class="post-update-card__upload-zone"
-           tabindex="0" role="button" aria-label="Upload completion evidence">
-        <input type="file" id="suf-file-${rid}" accept="image/*,video/*"
-               style="display:none" aria-hidden="true" />
-        <div id="suf-preview-${rid}" class="post-update-card__upload-inner">
-          <svg class="post-update-card__upload-icon" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
-          </svg>
-          <span class="post-update-card__upload-title">Upload Evidence Photo / Video</span>
-          <span class="post-update-card__upload-hint">Required &mdash; JPG, PNG, MP4 up to 100MB</span>
-        </div>
-      </div>` : ''}
+    <label class="post-update-card__label">UPDATE TITLE <span style="color:var(--color-text-muted)">(optional)</span></label>
+    <input type="text" id="suf-title-${rid}" class="post-update-card__input"
+           placeholder="e.g., Site Inspection Completed" style="margin-bottom:var(--space-4);" />
 
-      <div style="display:flex;gap:var(--space-3);margin-top:var(--space-3);">
-        <button type="button" id="suf-cancel-${rid}"
-                class="post-update-card__status-btn" style="flex:1">
-          Cancel
-        </button>
-        <button type="button" id="suf-submit-${rid}"
-                class="post-update-card__submit-btn"
-                style="flex:2" ${isCompleted ? 'disabled' : ''}>
-          Submit &amp; Change Status
-        </button>
+    <label class="post-update-card__label">UPDATE MESSAGE <span style="color:red">*</span></label>
+    <textarea id="suf-msg-${rid}" rows="4" class="post-update-card__textarea"
+              placeholder="Describe what was done or what is happening..."
+              style="margin-bottom:var(--space-4);"></textarea>
+
+    ${isCompleted ? `
+    <label class="post-update-card__label">COMPLETION EVIDENCE <span style="color:red">*</span></label>
+    <div id="suf-zone-${rid}" class="post-update-card__upload-zone" tabindex="0"
+         role="button" aria-label="Upload completion evidence"
+         style="margin-bottom:var(--space-4);">
+      <input type="file" id="suf-file-${rid}" accept="image/*,video/*"
+             style="display:none" aria-hidden="true" />
+      <div id="suf-preview-${rid}" class="post-update-card__upload-inner">
+        <svg class="post-update-card__upload-icon" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+        </svg>
+        <span class="post-update-card__upload-title">Upload Evidence Photo / Video</span>
+        <span class="post-update-card__upload-hint">Required &mdash; JPG, PNG, MP4 up to 100MB</span>
       </div>
+    </div>` : ''}
+
+    <div style="display:flex;gap:var(--space-3);">
+      <button type="button" id="suf-cancel-${rid}"
+              class="post-update-card__status-btn" style="flex:1">
+        Cancel
+      </button>
+      <button type="button" id="suf-submit-${rid}"
+              class="post-update-card__submit-btn"
+              style="flex:2" ${isCompleted ? 'disabled' : ''}>
+        Submit &amp; Change Status
+      </button>
     </div>
   `;
 
-  body.appendChild(wrap);
+  backdrop.appendChild(panel);
+  document.body.appendChild(backdrop);
 
-  // Scroll form into view
-  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  function closePanel() { backdrop.remove(); }
+
+  // Close on backdrop click
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closePanel(); });
+  panel.querySelector('#suf-close-' + rid)?.addEventListener('click', closePanel);
+  panel.querySelector('#suf-cancel-' + rid)?.addEventListener('click', closePanel);
 
   // Evidence upload (Completed only)
   let evidenceFile = null;
   if (isCompleted) {
-    const zone    = wrap.querySelector('#suf-zone-' + rid);
-    const fileIn  = wrap.querySelector('#suf-file-' + rid);
-    const preview = wrap.querySelector('#suf-preview-' + rid);
-    const submitBtn = wrap.querySelector('#suf-submit-' + rid);
+    const zone    = panel.querySelector('#suf-zone-' + rid);
+    const fileIn  = panel.querySelector('#suf-file-' + rid);
+    const preview = panel.querySelector('#suf-preview-' + rid);
+    const submitBtn = panel.querySelector('#suf-submit-' + rid);
 
-    function setEvidenceFile(f) {
+    function setEvFile(f) {
       evidenceFile = f;
       submitBtn.disabled = !f;
       preview.innerHTML = '';
@@ -805,14 +809,11 @@ async function openDetailModalWithForm(report, statusCell, pendingStatus) {
         preview.appendChild(lbl);
       }
       const rm = document.createElement('button');
-      rm.type = 'button'; rm.className = 'post-update-card__upload-remove';
-      rm.textContent = 'Remove';
+      rm.type = 'button'; rm.className = 'post-update-card__upload-remove'; rm.textContent = 'Remove';
       rm.addEventListener('click', (e) => {
-        e.stopPropagation();
-        evidenceFile = null; fileIn.value = '';
+        e.stopPropagation(); evidenceFile = null; fileIn.value = '';
         submitBtn.disabled = true;
-        preview.innerHTML = `
-          <span class="post-update-card__upload-title">Upload Evidence Photo / Video</span>`;
+        preview.innerHTML = '<span class="post-update-card__upload-title">Upload Evidence Photo / Video</span>';
       });
       preview.appendChild(rm);
     }
@@ -821,24 +822,19 @@ async function openDetailModalWithForm(report, statusCell, pendingStatus) {
     zone?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileIn?.click(); });
     zone?.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('post-update-card__upload-zone--drag'); });
     zone?.addEventListener('dragleave', () => zone.classList.remove('post-update-card__upload-zone--drag'));
-    zone?.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('post-update-card__upload-zone--drag'); if (e.dataTransfer.files[0]) setEvidenceFile(e.dataTransfer.files[0]); });
-    fileIn?.addEventListener('change', () => { if (fileIn.files[0]) setEvidenceFile(fileIn.files[0]); });
+    zone?.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('post-update-card__upload-zone--drag'); if (e.dataTransfer.files[0]) setEvFile(e.dataTransfer.files[0]); });
+    fileIn?.addEventListener('change', () => { if (fileIn.files[0]) setEvFile(fileIn.files[0]); });
   }
 
-  // Cancel
-  wrap.querySelector('#suf-cancel-' + rid)?.addEventListener('click', () => {
-    wrap.remove();
-  });
-
   // Submit — only NOW the status changes
-  wrap.querySelector('#suf-submit-' + rid)?.addEventListener('click', async () => {
-    const titleVal = wrap.querySelector('#suf-title-' + rid)?.value.trim() ?? '';
-    const msgVal   = wrap.querySelector('#suf-msg-'   + rid)?.value.trim() ?? '';
+  panel.querySelector('#suf-submit-' + rid)?.addEventListener('click', async () => {
+    const titleVal  = panel.querySelector('#suf-title-' + rid)?.value.trim() ?? '';
+    const msgVal    = panel.querySelector('#suf-msg-'   + rid)?.value.trim() ?? '';
+    const submitBtn = panel.querySelector('#suf-submit-' + rid);
 
-    if (!msgVal) { showToast('Please provide an update message.', 'error'); return; }
-    if (isCompleted && !evidenceFile) { showToast('Please upload completion evidence.', 'error'); return; }
+    if (!msgVal)                        { showToast('Please provide an update message.', 'error'); return; }
+    if (isCompleted && !evidenceFile)   { showToast('Please upload completion evidence.', 'error'); return; }
 
-    const submitBtn = wrap.querySelector('#suf-submit-' + rid);
     submitBtn.disabled = true;
     submitBtn.textContent = 'Saving...';
 
@@ -850,8 +846,8 @@ async function openDetailModalWithForm(report, statusCell, pendingStatus) {
       }
 
       const updateData = { status: pendingStatus, updatedAt: serverTimestamp() };
-      if (msgVal)  updateData.lastUpdate = msgVal;
-      if (evUrl)   updateData[evType === 'video' ? 'completionVideoUrl' : 'completionImageUrl'] = evUrl;
+      if (msgVal) updateData.lastUpdate = msgVal;
+      if (evUrl)  updateData[evType === 'video' ? 'completionVideoUrl' : 'completionImageUrl'] = evUrl;
 
       await updateDoc(doc(db, 'reports', report.id), updateData);
       await addDoc(collection(db, 'reports', report.id, 'statusHistory'), {
@@ -863,14 +859,13 @@ async function openDetailModalWithForm(report, statusCell, pendingStatus) {
         ...(evUrl ? { evidenceUrl: evUrl, evidenceType: evType } : {}),
       });
 
-      // Notify resident
       notifyResident(report.userId, 'report_update',
         titleVal || ('Report Status: ' + pendingStatus),
         msgVal,
         { reportId: report.id, reportRef: report.reportReference }
       );
 
-      // Update table badge
+      // Update table badge live
       report.status = pendingStatus;
       const tr = document.querySelector('tr[data-id="' + report.id + '"]');
       if (tr) {
@@ -878,16 +873,15 @@ async function openDetailModalWithForm(report, statusCell, pendingStatus) {
         if (td) setStatusCell(td, pendingStatus);
       }
 
-      wrap.remove();
+      closePanel();
       showToast('Status changed to "' + pendingStatus + '" successfully.', 'success');
     } catch (err) {
       console.error('[status-form]', err);
-      showToast('Failed to update status. Please try again.', 'error');
+      showToast('Failed to update. Please try again.', 'error');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Submit & Change Status';
     }
   });
-
 }
 // ---------------------------------------------------------------------------
 // Inline category select
